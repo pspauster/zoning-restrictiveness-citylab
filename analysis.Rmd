@@ -1,0 +1,96 @@
+---
+title: "analysis"
+author: "Patrick"
+date: "4/19/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(readxl)
+library(openxlsx)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Read in data for municipalities and MSAs
+```{r}
+
+munis <- read_csv("https://github.com/mtmleczko/nzlud/raw/main/nzlud_muni.csv")
+msas <- read_csv("https://github.com/mtmleczko/nzlud/raw/main/nzlud_msa.csv")
+
+```
+Recreate EV blog table
+
+```{r}
+
+top10_msa <- msas %>% 
+  filter(responses >= 10) %>%  #only those that coded 10 or more municipalities
+  arrange(desc(zri_full_st)) %>% 
+  head(10) %>% 
+  mutate(rank = row_number()) %>% 
+  select(rank, cbsaname10, zri_full_st)
+
+write_csv(top10_msa, "top10_msa.csv")
+
+```
+
+Least Restrictive MSAs
+
+```{r}
+
+bottom10_msa <- msas %>% 
+  filter(responses >= 10) %>%  #only those that coded 10 or more municipalities
+  arrange(zri_full_st) %>% 
+  head(10) %>% 
+  mutate(rank = row_number()) %>% 
+  select(rank, cbsaname10, zri_full_st)
+
+write_csv(top10_msa, "bottom10_msa.csv")
+
+```
+
+Get rural commuting codes
+```{r}
+rucas2010 <- read.xlsx("https://www.ers.usda.gov/webdocs/DataFiles/53241/ruca2010revised.xlsx?v=3536.2", startRow = 2) %>%
+  janitor::clean_names()
+
+#output from geocorr
+tracts_places_xwalk <- read_csv("2010tracts-2010places-xwalk.csv") %>% 
+  mutate(tract_new = case_when(str_detect(tract, "[.]") ~ str_replace(tract,
+                                    pattern = "[.]",
+                                    replacement = ""),
+                               str_length(tract) == 3 ~ 
+                                 str_pad(tract, "left", pad = "0", width = 4),
+                               T ~ tract
+                               ),
+    GEOID = paste0(str_pad(county, width = 5, side = "left", pad = "0"),
+                                 str_pad(tract_new, "right", pad = "0", width = 6)
+                        
+         )
+  )
+
+
+
+
+```
+
+Get top restricive munis
+
+```{r}
+top10_munis <- munis %>% 
+  arrange(desc(zri_st)) %>% 
+  #head(10) %>% 
+  mutate(rank = row_number()) %>% 
+  select(rank, statename, place, zri_st)
+
+bottom10_munis <- munis %>% 
+  arrange(zri_st) %>% 
+  #head(10) %>% 
+  mutate(rank = row_number()) %>% 
+  select(rank, statename, place, zri_st)
+  
+```
+
+
+
