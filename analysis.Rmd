@@ -9,6 +9,7 @@ output: html_document
 library(tidyverse)
 library(readxl)
 library(openxlsx)
+library(tidycensus)
 
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -57,9 +58,12 @@ rucas2010 <- read.xlsx("https://www.ers.usda.gov/webdocs/DataFiles/53241/ruca201
 
 #output from geocorr
 tracts_places_xwalk <- read_csv("2010tracts-2010places-xwalk.csv") %>% 
-  mutate(tract_new = case_when(str_detect(tract, "[.]") ~ str_replace(tract,
+  mutate(tract_new = case_when(str_detect(tract, "[.]") ~ str_pad(str_replace(tract,
                                     pattern = "[.]",
                                     replacement = ""),
+                                    side = "left",
+                                    pad = "0",
+                                    width = 6),
                                str_length(tract) == 3 ~ 
                                  str_pad(tract, "left", pad = "0", width = 4),
                                T ~ tract
@@ -71,9 +75,32 @@ tracts_places_xwalk <- read_csv("2010tracts-2010places-xwalk.csv") %>%
   )
 
 
-
+rucas_places <- left_join(rucas2010, tracts_places_xwalk,
+      by = c("state_county_tract_fips_code_lookup_by_address_at_http_www_ffiec_gov_geocode"= "GEOID"))
 
 ```
+
+
+Census data for places
+```{r}
+
+vars <- load_variables(2019, "acs5")
+
+place_data <- get_acs(
+  geography = "place",
+  survey = "acs5",
+  variables = c(total_population = "B01003_001",
+                median_household_income = "B19019_001",
+                race_eth_denom = "B03002_001",
+                white_nonhsp = "B03002_003"
+                ),
+  year = 2019
+)
+
+```
+
+
+
 
 Get top restricive munis
 
