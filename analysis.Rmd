@@ -18,11 +18,12 @@ knitr::opts_chunk$set(echo = TRUE)
 Read in data for municipalities and MSAs
 ```{r}
 
-munis <- read_csv("https://github.com/mtmleczko/nzlud/raw/main/nzlud_muni.csv", col_types = cols(GEOID = col_character())) 
+munis <- read_csv("https://github.com/mtmleczko/nzlud/raw/main/nzlud_muni.csv", col_types = cols(GEOID = col_character())) %>%
+  mutate(GEOID = str_pad(as.character(GEOID), "left", width = 7, pad = "0"))
   
 msas <- read_csv("https://github.com/mtmleczko/nzlud/raw/main/nzlud_msa.csv", col_types = cols(cbsa10 = col_character()))
 
-msa_coverage <- read_csv("https://github.com/mtmleczko/nzlud/raw/main/msa_coverage_rates.csv")
+msa_coverage <- read_csv("https://github.com/mtmleczko/nzlud/raw/main/msa_coverage_rates.csv", col_types = cols(cbsa10 = col_character()))
 
 msas <- left_join(msas, msa_coverage, by = "cbsa10")
 
@@ -71,18 +72,6 @@ write_csv(top10_msa, "bottom10_msa.csv")
 
 ```
 
-Get rural commuting codes
-```{r}
-rucas2010 <- read.xlsx("https://www.ers.usda.gov/webdocs/DataFiles/53241/ruca2010revised.xlsx?v=3536.2", startRow = 2) %>%
-  janitor::clean_names()
-
-#output from geocorr
-
-         
-rucas_places <- left_join(rucas2010, tracts_places_xwalk,
-      by = c("state_county_tract_fips_code_lookup_by_address_at_http_www_ffiec_gov_geocode"= "GEOID"))
-
-```
 
 ```{r}
 upsai <- read_csv("UPSAI_050820.csv")
@@ -91,13 +80,24 @@ tracts_places_xwalk <- read_csv("2010tracts-2010places-xwalk.csv", skip = 1, col
   mutate(state_code = str_pad(state_code, "left", pad = "0", width = 2),
          county_code = str_sub(county_code, start = -3, end = -1),
          tract_mid = ifelse(grepl("\\.", tract), tract, paste0(tract, "00")),
-          tract_code = str_pad(str_remove_all(tract_mid, "\\."), width = 6, side = "left", pad = "0"),
+         tract_code = str_pad(str_remove_all(tract_mid, "\\."), width = 6, side = "left", pad = "0"),
+         state_place = paste0(state_code,str_pad(place_code, "left", pad = "0", width = 5)),
          afact = as.numeric(placefp_to_tract_allocation_factor))
 
+countysubs_places_xwalk <- read_csv("2010tracts-2010csubs-xwalk.csv", skip = 1, col_types = cols(.default = "c")) %>% clean_names() %>% 
+  mutate(countysub_code = str_pad(county_subdivision_code, "left", pad = "0", width = 5),
+         state_code = str_sub(str_pad(county_code, "left", pad = "0", width = 5), start = 1, end = 2),
+         county_code = str_sub(county_code, start = -3, end = -1),
+         tract_mid = ifelse(grepl("\\.", tract), tract, paste0(tract, "00")),
+         tract_code = str_pad(str_remove_all(tract_mid, "\\."), width = 6, side = "left", pad = "0"),
+         state_csub = paste0(state_code, countysub_code),
+         afact = as.numeric(cousubfp_to_tract_allocation_factor))
 
-rural_munis <- left_join(tracts_places_xwalk, upsai, by = c("state_code"= "STATEFP", "county_code"= "COUNTYFP", "tract_code" = "TRACTCE")) %>% 
-  mutate(state_place = paste0(state_code,str_pad(place_code, "left", pad = "0", width = 5))) %>% 
-  group_by(state_place, place_name) %>% 
+csubs_places_xwalked <- bind_rows(tracts_places_xwalk, countysubs_places_xwalk)
+
+rural_munis <- left_join(csubs_places_xwalked, upsai, by = c("state_code"= "STATEFP", "county_code"= "COUNTYFP", "tract_code" = "TRACTCE")) %>% 
+  mutate(GEOID = if_else(is.na(state_place), state_csub, state_place)) %>% 
+  group_by(GEOID) %>% 
   summarize(urban_prob_weighted = sum(afact*UPSAI_urban, na.rm = T),
             suburban_prob_weighted = sum(afact*UPSAI_suburban, na.rm = T),
             rural_prob_weighted = sum(afact*UPSAI_rural, na.rm = T),
@@ -123,24 +123,52 @@ place <- get_acs(
   variables = c(total_population = "B01003_001",
                 median_household_income = "B19019_001",
                 race_eth_denom = "B03002_001",
-                white_nonhsp = "B03002_003"
+                white_nonhsp = "B03002_003",
+                education_denom = "B15003_001",
+                bachelors = "B15003_022",
+                masters = "B15003_023",
+                professional = "B15003_024",
+                doctoral = "B15003_025"
                 ),
   year = 2019,
   output = "wide"
-) 
+) %>% 
+  mutate(bachelor_per = (bachelorsE + mastersE + professionalE + doctoralE)/education_denomE)
 
-place_data <- place %>% 
-  mutate(white_quint = ntile((white_nonhspE/race_eth_denomE), 5),
-         hh_inc_quint = ntile(median_household_incomeE, 5),
-         )
+# place_data <- place %>% 
+#   mutate(white_quint = ntile((white_nonhspE/race_eth_denomE), 5),
+#          hh_inc_quint = ntile(median_household_incomeE, 5),
+#          )
 
+countysub <- get_acs(
+  state = state.abb,
+  geography = "county subdivision",
+  survey = "acs5",
+  variables = c(total_population = "B01003_001",
+                median_household_income = "B19019_001",
+                race_eth_denom = "B03002_001",
+                white_nonhsp = "B03002_003",
+                education_denom = "B15003_001",
+                bachelors = "B15003_022",
+                masters = "B15003_023",
+                professional = "B15003_024",
+                doctoral = "B15003_025"
+                ),
+  year = 2019,
+  output = "wide"
+) %>%  mutate(
+  GEOID = paste0(str_sub(GEOID, start = 1, end = 2), str_sub(GEOID, start = 6, end = 10)),
+  bachelor_per = (bachelorsE + mastersE + professionalE + doctoralE)/education_denomE)
+
+
+place_countysub <- bind_rows(place, countysub)
 
 msa_census <- get_acs(geography = "cbsa",
                survey = "acs5",
   variables = c(total_population = "B01003_001",
                 median_household_income = "B19019_001",
                 race_eth_denom = "B03002_001",
-                white_nonhsp = "B03002_003"
+                white_nonhsp = "B03002_003",
                 ),
   year = 2019,
   output = "wide") %>% 
@@ -153,13 +181,12 @@ msa_census <- get_acs(geography = "cbsa",
 ```{r}
 
 munis_rural_census <- munis %>% 
-  mutate(state_place = str_pad(as.character(GEOID), "left", width = 7, pad = "0")) %>% 
-  left_join(rural_munis, by = "state_place") %>% 
-  left_join(place_data, by = c("state_place" = "GEOID"))
+  left_join(place_countysub, by = "GEOID") %>% 
+  left_join(rural_munis, by = "GEOID") %>% 
+  mutate(mf_quintile = ntile(mf_per, 5))
 
-anti_join(munis%>% 
-  mutate(state_place = str_pad(as.character(GEOID), "left", width = 7, pad = "0"))
-  , place_data, by = c("state_place" = "GEOID"))
+anti_join(munis, place_countysub, by = c("GEOID"))
+anti_join(munis, rural_munis, by = "GEOID")
 
 ```
 
@@ -189,6 +216,7 @@ munis_rural_census %>%
             avg_pop = mean(total_populationE, na.rm = T),
             white_proportion = mean(white_nonhspE/race_eth_denomE, na.rm = T),
             hh_inc = mean(median_household_incomeE, na.rm = T),
+            ed = mean(bachelor_per, na.rm = T),
             zri = mean(zri_st, na.rm = T),
             mf_per = mean(mf_per, na.rm = T)
             )
@@ -200,11 +228,12 @@ munis_rural_census %>%
 ```{r}
 
 munis_rural_census %>% 
-  group_by(white_quint) %>% 
+  group_by(mf_quintile) %>% 
   summarize(no_places = n(),
             avg_pop = mean(total_populationE, na.rm = T),
             white_proportion = mean(white_nonhspE/race_eth_denomE, na.rm = T),
             hh_inc = mean(median_household_incomeE, na.rm = T),
+            ed = mean(bachelor_per, na.rm = T),
             zri = mean(zri_st, na.rm = T),
             mf_per = mean(mf_per, na.rm = T)
             )
@@ -219,9 +248,6 @@ munis_rural_census %>%
 
 msas_census <- left_join(msas,msa_census, by = c("cbsa10" = "GEOID")) %>% 
   mutate(zri_quint = ntile(zri_full_st, 5))
-
-
-
 
 ```
 
