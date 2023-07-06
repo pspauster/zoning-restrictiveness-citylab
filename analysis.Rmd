@@ -168,7 +168,7 @@ msa_census <- get_acs(geography = "cbsa",
   variables = c(total_population = "B01003_001",
                 median_household_income = "B19019_001",
                 race_eth_denom = "B03002_001",
-                white_nonhsp = "B03002_003",
+                white_nonhsp = "B03002_003"
                 ),
   year = 2019,
   output = "wide") %>% 
