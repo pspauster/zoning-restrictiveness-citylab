@@ -242,7 +242,8 @@ munis_by_suburb <- munis_rural_census %>%
 
 munis_by_suburb %>% 
   ggplot()+
-  geom_col(mapping = aes(x = max_column, y = white_proportion, fill = max_column))
+  geom_col(mapping = aes(x = factor(max_column, levels = rev(c("rural", "urban", "suburban"))), y = zri, fill = max_column))+
+  coord_flip()
 
 
 ```
@@ -264,7 +265,7 @@ munis_by_zri <- munis_rural_census %>%
 
 munis_by_zri %>% 
   ggplot()+
-  geom_col(mapping = aes(x = zri_quint, y = hh_inc, fill = zri_quint))
+  geom_col(mapping = aes(x = zri_quint, y = white_proportion, fill = zri_quint))
 
 
 
@@ -272,7 +273,7 @@ munis_by_zri %>%
 
 ```{r}
 
-munis_rural_census %>% 
+munis_by_mf<-munis_rural_census %>% 
   group_by(mf_quintile) %>% 
   summarize(no_places = n(),
             avg_pop = mean(total_populationE, na.rm = T),
@@ -283,7 +284,9 @@ munis_rural_census %>%
             mf_per = mean(mf_per, na.rm = T)
             )
 
-
+munis_by_mf %>% 
+  ggplot()+
+  geom_col(mapping = aes(x = mf_quintile, y = white_proportion, fill = mf_quintile))
 
 
 ```
