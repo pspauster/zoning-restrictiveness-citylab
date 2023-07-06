@@ -211,6 +211,25 @@ bottom10_munis <- munis %>%
 ```{r}
 
 munis_rural_census %>% 
+  ggplot()+
+  geom_point(mapping = aes(x = zri_st, y = median_household_incomeE, color = max_column))
+
+```
+```{r}
+
+munis_rural_census %>% 
+  mutate(zri_quint = ntile(zri_st, 5)) %>% 
+  ggplot()+
+  geom_bar(mapping = aes(x = zri_quint, fill = max_column), position = "fill")
+
+
+```
+
+
+
+```{r}
+
+munis_by_suburb <- munis_rural_census %>% 
   group_by(max_column) %>% 
   summarize(no_places = n(),
             avg_pop = mean(total_populationE, na.rm = T),
@@ -221,9 +240,35 @@ munis_rural_census %>%
             mf_per = mean(mf_per, na.rm = T)
             )
 
+munis_by_suburb %>% 
+  ggplot()+
+  geom_col(mapping = aes(x = max_column, y = white_proportion, fill = max_column))
+
 
 ```
 
+```{r}
+
+munis_by_zri <- munis_rural_census %>% 
+  mutate(zri_quint = ntile(zri_st, 5)) %>% 
+  group_by(zri_quint) %>% 
+  summarize(no_places = n(),
+            avg_pop = mean(total_populationE, na.rm = T),
+            white_proportion = mean(white_nonhspE/race_eth_denomE, na.rm = T),
+            hh_inc = mean(median_household_incomeE, na.rm = T),
+            ed = mean(bachelor_per, na.rm = T),
+            zri = mean(zri_st, na.rm = T),
+            mf_per = mean(mf_per, na.rm = T)
+            )
+
+
+munis_by_zri %>% 
+  ggplot()+
+  geom_col(mapping = aes(x = zri_quint, y = hh_inc, fill = zri_quint))
+
+
+
+```
 
 ```{r}
 
@@ -246,7 +291,7 @@ munis_rural_census %>%
 
 ```{r}
 
-msas_census <- left_join(msas,msa_census, by = c("cbsa10" = "GEOID")) %>% 
+msas_census <- left_join(msas, msa_census, by = c("cbsa10" = "GEOID")) %>% 
   mutate(zri_quint = ntile(zri_full_st, 5))
 
 ```
