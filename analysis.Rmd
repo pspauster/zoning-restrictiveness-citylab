@@ -55,7 +55,14 @@ options(scipen = 999)
 
 ```{r}
 #https://www.census.gov/programs-surveys/ces/data/public-use-data/opportunity-atlas-data-tables.html
-opportunity <- read_csv("tract_outcomes_early.csv")
+opportunity <- read_csv("tract_kfr_rP_gP_p25.csv",
+                        col_types = cols(tract = col_character()))
+
+opportunity_clean <- opportunity %>% 
+  clean_names() %>% 
+  mutate(opp_code = str_pad(tract, "left", pad = "0", width = 11)) %>% 
+  select(-tract)
+  
 ```
 
 
@@ -99,7 +106,10 @@ tracts_places_xwalk <- read_csv("2010tracts-2010places-xwalk.csv", skip = 1, col
          tract_mid = ifelse(grepl("\\.", tract), tract, paste0(tract, "00")),
          tract_code = str_pad(str_remove_all(tract_mid, "\\."), width = 6, side = "left", pad = "0"),
          state_place = paste0(state_code,str_pad(place_code, "left", pad = "0", width = 5)),
-         afact = as.numeric(placefp_to_tract_allocation_factor))
+         afact = as.numeric(placefp_to_tract_allocation_factor),
+         opp_code = paste0(state_code, county_code, tract_code),
+         population_2010 = as.numeric(population_2010)) %>% 
+  left_join(opportunity_clean, by = "opp_code")
 
 countysubs_places_xwalk <- read_csv("2010tracts-2010csubs-xwalk.csv", skip = 1, col_types = cols(.default = "c")) %>% clean_names() %>% 
   mutate(countysub_code = str_pad(county_subdivision_code, "left", pad = "0", width = 5),
@@ -108,7 +118,10 @@ countysubs_places_xwalk <- read_csv("2010tracts-2010csubs-xwalk.csv", skip = 1, 
          tract_mid = ifelse(grepl("\\.", tract), tract, paste0(tract, "00")),
          tract_code = str_pad(str_remove_all(tract_mid, "\\."), width = 6, side = "left", pad = "0"),
          state_csub = paste0(state_code, countysub_code),
-         afact = as.numeric(cousubfp_to_tract_allocation_factor))
+         afact = as.numeric(cousubfp_to_tract_allocation_factor),
+         opp_code = paste0(state_code, county_code, tract_code),
+         population_2010 = as.numeric(population_2010))%>% 
+  left_join(opportunity_clean, by = "opp_code")
 
 csubs_places_xwalked <- bind_rows(tracts_places_xwalk, countysubs_places_xwalk)
 
@@ -118,6 +131,7 @@ rural_munis <- left_join(csubs_places_xwalked, upsai, by = c("state_code"= "STAT
   summarize(urban_prob_weighted = sum(afact*UPSAI_urban, na.rm = T),
             suburban_prob_weighted = sum(afact*UPSAI_suburban, na.rm = T),
             rural_prob_weighted = sum(afact*UPSAI_rural, na.rm = T),
+            opp_income = sum(household_income_at_age_35_r_p_g_p_p25*population_2010/sum(population_2010, na.rm = T), na.rm = T),
             afact_check = sum(afact),
             state_code = first(state_code)) %>% 
     mutate(max_column = case_when(
@@ -232,7 +246,7 @@ bottom10_munis <- munis %>%
 munis_rural_census %>% 
   mutate(zri_quint = ntile(zri_st, 5)) %>% 
   ggplot()+
-  geom_point(mapping = aes(x = zri, y = median_household_incomeE))
+  geom_point(mapping = aes(x = zri, y = opp_income))
 
 ```
 
@@ -301,13 +315,14 @@ munis_by_zri <- munis_rural_census %>%
             hh_inc = mean(median_household_incomeE, na.rm = T),
             ed = mean(bachelor_per, na.rm = T),
             zri = mean(zri_st, na.rm = T),
-            mf_per = mean(mf_per, na.rm = T)
+            mf_per = mean(mf_per, na.rm = T),
+            opp_income = mean(opp_income, na.rm = T)
             )
 
 
 munis_by_zri %>% 
   ggplot()+
-  geom_col(mapping = aes(x = zri_quint, y = hh_inc, fill = zri_quint))
+  geom_col(mapping = aes(x = zri_quint, y = opp_income, fill = zri_quint))
 
 
 
@@ -321,6 +336,9 @@ model <- lm(median_household_incomeE ~ zri, data = munis_rural_census)
 
 summary(model)
 
+model <- lm(opp_income ~ zri, data = munis_rural_census)
+
+summary(model)
 ```
 
 
