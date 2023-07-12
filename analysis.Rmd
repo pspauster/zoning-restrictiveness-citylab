@@ -39,9 +39,26 @@ zri_up <- readxl::read_excel(temp_file) %>%
   filter(!is.na(zri_up_st)) %>% 
   mutate(zri_quint = ntile(zri_up_st, 5))
 
+regions <- read_csv("state-geocodes-v2016.csv", skip = 5) %>% 
+  clean_names() %>% 
+  mutate(region_name = case_when(
+    region == 1 ~ "Northeast",
+    region == 2 ~ "Midwest",
+    region == 3 ~ "South",
+    region == 4 ~ "West",
+  )) %>% 
+  select(state_fips, region_name)
+
 options(scipen = 999)
 
 ```
+
+```{r}
+#https://www.census.gov/programs-surveys/ces/data/public-use-data/opportunity-atlas-data-tables.html
+opportunity <- read_csv("tract_outcomes_early.csv")
+```
+
+
 Recreate EV blog table
 
 ```{r}
@@ -101,12 +118,14 @@ rural_munis <- left_join(csubs_places_xwalked, upsai, by = c("state_code"= "STAT
   summarize(urban_prob_weighted = sum(afact*UPSAI_urban, na.rm = T),
             suburban_prob_weighted = sum(afact*UPSAI_suburban, na.rm = T),
             rural_prob_weighted = sum(afact*UPSAI_rural, na.rm = T),
-            afact_check = sum(afact)) %>% 
+            afact_check = sum(afact),
+            state_code = first(state_code)) %>% 
     mutate(max_column = case_when(
     urban_prob_weighted >= suburban_prob_weighted &  urban_prob_weighted >= rural_prob_weighted ~ "urban",
     suburban_prob_weighted >= urban_prob_weighted & suburban_prob_weighted >= rural_prob_weighted ~ "suburban",
     rural_prob_weighted >= urban_prob_weighted & rural_prob_weighted >= suburban_prob_weighted ~ "rural"
-    ))
+    )) %>% 
+  left_join(regions, by = c("state_code"= "state_fips"))
   
 
 ```
@@ -211,10 +230,14 @@ bottom10_munis <- munis %>%
 ```{r}
 
 munis_rural_census %>% 
+  mutate(zri_quint = ntile(zri_st, 5)) %>% 
   ggplot()+
-  geom_point(mapping = aes(x = zri_st, y = median_household_incomeE, color = max_column))
+  geom_point(mapping = aes(x = zri, y = median_household_incomeE))
 
 ```
+
+
+
 ```{r}
 
 munis_rural_census %>% 
@@ -247,6 +270,25 @@ munis_by_suburb %>%
 
 
 ```
+```{r}
+
+munis_by_suburb_region <- munis_rural_census %>% 
+  group_by(max_column, region_name) %>% 
+  summarize(no_places = n(),
+            avg_pop = mean(total_populationE, na.rm = T),
+            white_proportion = mean(white_nonhspE/race_eth_denomE, na.rm = T),
+            hh_inc = mean(median_household_incomeE, na.rm = T),
+            ed = mean(bachelor_per, na.rm = T),
+            zri = mean(zri, na.rm = T),
+            mf_per = mean(mf_per, na.rm = T)
+            )
+
+munis_by_suburb_region %>% 
+  ggplot()+
+  geom_col(mapping = aes(x = region_name, y = zri, fill = max_column), 
+           position = "dodge")
+
+```
 
 ```{r}
 
@@ -265,11 +307,22 @@ munis_by_zri <- munis_rural_census %>%
 
 munis_by_zri %>% 
   ggplot()+
-  geom_col(mapping = aes(x = zri_quint, y = white_proportion, fill = zri_quint))
+  geom_col(mapping = aes(x = zri_quint, y = hh_inc, fill = zri_quint))
+
+
 
 
 
 ```
+
+```{r}
+
+model <- lm(median_household_incomeE ~ zri, data = munis_rural_census)
+
+summary(model)
+
+```
+
 
 ```{r}
 
@@ -290,6 +343,9 @@ munis_by_mf %>%
 
 
 ```
+
+
+
 
 
 ```{r}
@@ -327,6 +383,20 @@ msas_census %>%
             hh_inc = mean(median_household_incomeE, na.rm = T),
             zri = mean(zri_full_st, na.rm = T),
             )
+
+```
+
+```{r}
+
+munis_rural_census %>% 
+  mutate(zri_quint = ntile(zri_st, 5)) %>% 
+  group_by(zri_quint, max_column) %>% 
+      summarize(no_places = n(),
+            avg_pop = mean(total_populationE, na.rm = T),
+            white_proportion = mean(white_nonhspE/race_eth_denomE, na.rm = T),
+            hh_inc = mean(median_household_incomeE, na.rm = T)
+            )
+
 
 ```
 
