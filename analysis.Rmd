@@ -58,7 +58,11 @@ options(scipen = 999)
 opportunity <- read_csv("tract_kfr_rP_gP_p25.csv",
                         col_types = cols(tract = col_character()))
 
+opportunity2 <- read_csv("tract_kfr_top20_rP_gP_p25.csv",
+                        col_types = cols(tract = col_character()))
+
 opportunity_clean <- opportunity %>% 
+  left_join(opportunity2) %>% 
   clean_names() %>% 
   mutate(opp_code = str_pad(tract, "left", pad = "0", width = 11)) %>% 
   select(-tract)
@@ -194,7 +198,11 @@ countysub <- get_acs(
   bachelor_per = (bachelorsE + mastersE + professionalE + doctoralE)/education_denomE)
 
 
-place_countysub <- bind_rows(place, countysub)
+place_countysub <- bind_rows(place, countysub) %>% 
+  mutate(
+    non_white = race_eth_denomE - white_nonhspE,
+    ice = (white_nonhspE - non_white)/(race_eth_denomE)
+  )
 
 msa_census <- get_acs(geography = "cbsa",
                survey = "acs5",
@@ -206,7 +214,7 @@ msa_census <- get_acs(geography = "cbsa",
   year = 2019,
   output = "wide") %>% 
   mutate(white_quint = ntile((white_nonhspE/race_eth_denomE), 5),
-         hh_inc_quint = ntile(median_household_incomeE, 5),
+         hh_inc_quint = ntile(median_household_incomeE, 5)
          )
 
 ```
@@ -245,8 +253,9 @@ bottom10_munis <- munis %>%
 
 munis_rural_census %>% 
   mutate(zri_quint = ntile(zri_st, 5)) %>% 
+  filter(max_column == "suburban") %>% 
   ggplot()+
-  geom_point(mapping = aes(x = zri, y = opp_income))
+  geom_point(mapping = aes(x = zri, y = ice))
 
 ```
 
@@ -369,7 +378,10 @@ munis_by_mf %>%
 ```{r}
 
 msas_census <- left_join(msas, msa_census, by = c("cbsa10" = "GEOID")) %>% 
-  mutate(zri_quint = ntile(zri_full_st, 5))
+  mutate(zri_quint = ntile(zri_full_st, 5),
+    non_white = race_eth_denomE - white_nonhspE,
+    ice = (white_nonhspE - non_white)/(race_eth_denomE)
+  )
 
 ```
 
@@ -403,6 +415,23 @@ msas_census %>%
             )
 
 ```
+
+```{r}
+msas_census %>%   
+  filter(responses >= 10) %>% 
+  ggplot(mapping = aes(x = median_household_incomeE, y = zri_full_st))+
+  geom_point()+
+  geom_smooth(method = lm)
+```
+
+```{r}
+msas_census %>%   
+  filter(responses >= 10) %>% 
+  ggplot(mapping = aes(x = ice, y = zri_full_st))+
+  geom_point()+
+  geom_smooth(method = lm)
+```
+
 
 ```{r}
 
