@@ -289,10 +289,19 @@ munis_by_suburb <- munis_rural_census %>%
 munis_by_suburb %>% 
   ggplot()+
   geom_col(mapping = aes(x = factor(max_column, levels = rev(c("rural", "urban", "suburban"))), y = zri, fill = max_column))+
-  coord_flip()
+  coord_flip() +
+  theme_minimal()+
+  labs(title = "Suburbs Have More Restrictive Zoning",
+       subtitle = "Average ZRI scores by municipality type",
+       x = element_blank(),
+       y = "ZRI")+
+  guides(fill = guide_legend((title = element_blank())))
+
+munis_by_suburb %>% select(zri) %>%  write_csv("munis_by_municipality_type.csv")
 
 
 ```
+
 ```{r}
 
 munis_by_suburb_region <- munis_rural_census %>% 
@@ -418,11 +427,43 @@ msas_census %>%
 
 ```{r}
 msas_census %>%   
-  filter(responses >= 10) %>% 
+  filter(responses >= 10, total_populationE >= 500000) %>% 
   ggplot(mapping = aes(x = median_household_incomeE, y = zri_full_st))+
   geom_point()+
-  geom_smooth(method = lm)
+  geom_smooth(method = lm, se = F) +
+  theme_minimal()+
+  labs(title = "Wealthier Metropolitan Areas Have More Restrictive Zoning Policies",
+       x = "Median household income",
+       y = "ZRI")
+
+msas_census %>%   
+  filter(responses >= 10, total_populationE >= 500000) %>% 
+  select(cbsaname10, zri_full_st, median_household_incomeE) %>% 
+  write.csv("median_income_zri_cbsa.csv")
+
 ```
+
+```{r}
+top20 <- msas_census %>%   
+  filter(responses >= 10, total_populationE >= 500000, coverage_rate > .15) %>% 
+  mutate(cbsaname10 = str_replace_all(cbsaname10," Metropolitan Statistical Area| Metropolitan Statistical","")) %>% 
+  arrange(desc(zri_full_st)) %>% 
+  head(20) %>% 
+  select("Metro" = cbsaname10, "Percent of Municipalities Covered" = coverage_rate, "ZRI" = zri_full_st)
+
+top20 %>% 
+  write.csv("top20_cbsa.csv")
+
+top20 %>% 
+  gt() %>% 
+  fmt_percent(columns = "Percent of Municipalities Covered",  decimals = 0) %>% 
+  fmt_number(columns = "ZRI", decimals = 2)
+
+
+
+```
+
+
 
 ```{r}
 msas_census %>%   
