@@ -11,6 +11,7 @@ library(readxl)
 library(openxlsx)
 library(tidycensus)
 library(janitor)
+library(gt)
 
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -297,7 +298,7 @@ munis_by_suburb %>%
        y = "ZRI")+
   guides(fill = guide_legend((title = element_blank())))
 
-munis_by_suburb %>% select(zri) %>%  write_csv("munis_by_municipality_type.csv")
+munis_by_suburb %>% select(zri, max_column) %>%  write_csv("munis_by_municipality_type.csv")
 
 
 ```
