@@ -283,7 +283,7 @@ munis_by_suburb <- munis_rural_census %>%
             white_proportion = mean(white_nonhspE/race_eth_denomE, na.rm = T),
             hh_inc = mean(median_household_incomeE, na.rm = T),
             ed = mean(bachelor_per, na.rm = T),
-            zri = mean(zri_st, na.rm = T),
+            zri = mean(zri, na.rm = T),
             mf_per = mean(mf_per, na.rm = T)
             )
 
